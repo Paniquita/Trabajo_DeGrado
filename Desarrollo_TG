@@ -1,0 +1,87 @@
+import requests as r
+import pdfkit
+import os
+import PyPDF2
+import nltk
+from scipy.optimize import curve_fit
+import re
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from nltk.tokenize import word_tokenize
+from pdfminer.high_level import extract_text
+import statsmodels.api as sm
+from sklearn.metrics import r2_score
+
+# Lectura de texto
+def get_pdf(file):
+    pdf = extract_text(file)
+    text = re.sub('http\S+', ' ', pdf)
+    regex = '[\\!\\"\\#\\$\\%\\&\\\'\\(\\)\\*\\+\\,\\-\\/\\:\\;\\<\\=\\>\\?\\@\\[\\\\\\]\\^_\\`\\{\\|\\}\\~\\“\\º]'
+    text = re.sub(regex , ' ', text)
+    # Eliminación de números
+    text = re.sub("\d+", ' ', text)
+    # Eliminación de espacios en blanco múltiples
+    text = re.sub("\\s+", ' ', text)
+    return text
+
+## Tokenizado
+def clean_tokenize(texto):
+    # Se convierte todo el texto a minúsculas
+    text = texto.lower()
+    # Eliminación de páginas web (palabras que empiezan por "http")
+    text = re.sub('http\S+', ' ', text)
+    # Eliminación de signos de puntuación
+    regex = '[\\!\\"\\#\\$\\%\\&\\\'\\(\\)\\*\\+\\,\\-\\.\\/\\:\\;\\<\\=\\>\\?\\@\\[\\\\\\]\\^_\\`\\{\\|\\}\\~]'
+    text = re.sub(regex , ' ', text)
+    # Eliminación de números
+    text = re.sub("\d+", ' ', text)
+    # Eliminación de espacios en blanco múltiples
+    text = re.sub("\\s+", ' ', text)
+    # Tokenización por palabras individuales
+    #text = text.split(sep = ' ')
+    text = word_tokenize(text)
+    return(text)
+    
+## Calculo de la entropia de shannon    
+def shannon_entropy(dataframe):
+    prob = dataframe.iloc[:,1]/ np.sum(dataframe.iloc[:,1])
+    return -np.sum(prob * np.log2(prob))
+
+def shannon_entropy_centering(dataframe):
+    prob = dataframe.iloc[:,1] / np.sum(dataframe.iloc[:,1])  
+    return (-np.sum(prob * np.log2(prob))) / np.log2(len(dataframe))
+
+def shannon_entropy2(serie):
+    prob = serie/ np.sum(serie)
+    return -np.sum(prob * np.log2(prob))
+
+## Función para conteos y organización de base de datos
+def crear_dataframe(lista):
+    df = pd.DataFrame(lista, columns=['Elemento'])
+    conteo = df['Elemento'].value_counts().reset_index()
+    conteo.columns = ['Elemento', 'Conteo']
+    conteo['Rango'] = conteo['Conteo'].rank(ascending=False)
+    return conteo
+
+## Ajuste de modelos lineal
+def ajustar_modelo(dataframe):
+    X = np.log(dataframe.iloc[:, 2])  # Covariable con logaritmo aplicado
+    y = np.log(dataframe.iloc[:, 1])  # Variable respuesta con logaritmo aplicado
+    X = sm.add_constant(X)  # Agregar una columna de unos para el término constante
+    modelo = sm.OLS(y, X).fit()  # Ajustar el modelo lineal
+    return  modelo
+
+## Expresión para ajustar modelo no lineal zipf
+def modelo_no_lineal(x,a,c):
+    return a/(x)**c
+
+
+## Expresión para ajustar modelo exponencial
+def modelo_no_lineal2(x,a,c):
+    return a*np.exp(-c*x)
+
+## Expresión para ajustar modelo zipf mandelbrot
+def modelo_no_lineal3(x,a,c,d):
+    return a/(x+d)**c
